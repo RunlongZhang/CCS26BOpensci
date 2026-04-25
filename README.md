@@ -1,4 +1,4 @@
-# Fast Linear Function Sorting
+# Efficient Authentication Function Tree
 
 A C++ research codebase for **function sorting** experiments (e.g., ITree / FsTree variants and Merkle-tree-based proofs). Includes dataset generators and an LP solver target backed by HiGHS Simplex.
 
@@ -67,7 +67,7 @@ include_directories("C:/path/to/your/eigen")
 
 ## Build
 
-### Prerequisite: Edit CMakeLists Paths:
+### Prerequisite: Edit CMakeLists.txt Paths
 
 1. Edit line 9 to include path to eigen as shown in previous step.
 2. Edit line 16 to include path to Highs.h file
@@ -149,7 +149,4 @@ cd out\build\x64-Release
 python graphit.py 0 1 1 1 0 3 2
 ```
 
-The above sequence: 1. generates 2 data sets at 2 dimensions, 
-                    2. constructs all proposed structures
-                    3. formats the data into one file
-                    4. plots the formatted data for total storage
+The above sequence: generates 2 data sets at 2 dimensions, constructs all proposed structures, formats the data into one file, and plots the formatted data for total storage

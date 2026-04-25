@@ -1,0 +1,22 @@
+﻿# Build output
+out/
+build/
+dist/
+
+# Visual Studio / CMake user-specific
+.vs/
+*.user
+CMakeSettings.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Compiled artifacts
+*.obj
+*.lib
+*.pdb
+*.ilk
+*.exp
+
+# Generated test data (FunctionGenerator output)
+*.bin

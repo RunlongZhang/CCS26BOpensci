@@ -133,6 +133,10 @@ y-axis 0: construction time
        2: ADS storage without index
        3: total storage
 
+Note that graphit.py needs to be in the same directory as other executables.
+
+If you are using the prebuilt executables, simply move graphit.py to /prebuilt
+
 ## Example Sequence
 
 ```powershell

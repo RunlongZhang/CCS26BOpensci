@@ -99,9 +99,9 @@ FileStats parse_file(const fs::path& path,
         }
     }
 
-    // Verify time: scale raw value by constraints
+    // Verify time=
     if (verify_time_raw >= 0.0)
-        s.verify_time = verify_time_raw * (std::log2(tree_depth) * d);
+        s.verify_time = verify_time_raw;
 
     if (verify_storage_raw >= 0LL)
         s.verify_storage = verify_storage_raw;

@@ -152,6 +152,17 @@ def main():
     parsed = parse_file(fpath)
 
     sns.set_theme(style="whitegrid", context="talk")
+    plt.rcParams.update({
+        "axes.titlesize": 30,
+        "axes.titleweight": "bold",
+        "axes.labelsize": 28,
+        "axes.labelweight": "bold",
+        "xtick.labelsize": 24,
+        "ytick.labelsize": 24,
+        "legend.fontsize": 24,
+        "legend.title_fontsize": 24,
+        "font.weight": "bold",
+    })
 
     fig, ax = plt.subplots(figsize=(11, 7))
 
@@ -192,10 +203,18 @@ def main():
     x_label = "Intersections" if square_n else "Functions"
     y_label = "Time (Seconds)" if y_choice == 0 else "Storage (Bytes)"
 
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    ax.set_title(f"{title_map[y_choice]}, d = {file_num}")
-    ax.legend(fontsize=10, loc="best")
+    ax.set_xlabel(x_label, fontweight="bold")
+    ax.set_ylabel(y_label, fontweight="bold")
+    ax.set_title(f"{title_map[y_choice]}, d = {file_num}", fontweight="bold")
+
+    # Bold tick labels
+    for tl in ax.get_xticklabels() + ax.get_yticklabels():
+        tl.set_fontweight("bold")
+
+    legend = ax.legend(loc="best")
+    for text in legend.get_texts():
+        text.set_fontweight("bold")
+
     fig.tight_layout()
 
     graphs_dir = os.path.join(script_dir, "graphs")

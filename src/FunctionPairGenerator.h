@@ -8,8 +8,9 @@ namespace Generator {
      * Entry point for this generator (similar to other Generator::run functions).
      * n_functions: number of base functions Fi to generate
      * dim:         dimension of the space
+     * seed:        RNG seed; 0 (default) draws from std::random_device
      */
-    void run(std::size_t n_functions, std::size_t dim);
+    void run(std::size_t n_functions, std::size_t dim, unsigned seed = 0);
 
     /**
      * Generate:
@@ -22,7 +23,7 @@ namespace Generator {
      *     - stored in "<n>_pairwise_<dim>d.bin"
      *     - in lexicographic order of pairs: (1,2), (1,3), ..., (1,n), (2,3), ..., (n-1,n)
      */
-    void generate_functions_and_pairs(std::size_t n, std::size_t dim);
+    void generate_functions_and_pairs(std::size_t n, std::size_t dim, unsigned seed = 0);
 
     /**
      * Compute the 0-based index of the pair (i, j) in the pairwise array,

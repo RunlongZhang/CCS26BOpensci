@@ -7,17 +7,17 @@
 #include <print>
 #include <cstdint>
 #include <vector>
+#include <set>
 
 namespace Generator {
 
-    void generate_functions_and_pairs(std::size_t n, std::size_t dim) {
+    void generate_functions_and_pairs(std::size_t n, std::size_t dim, unsigned seed) {
         std::println(">>> Running Function + Pairwise Generator");
         std::println("Target Count: {} functions", n);
-        std::println("Target Dim:   {}D", dim);
+        std::println("Target Dim:   {}D (seed {})", dim, seed);
 
-        // RNG: A in [0,100]
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        // RNG: A in [0,100]; seeded for reproducibility when seed != 0
+        std::mt19937 gen(seed != 0 ? seed : std::random_device{}());
         std::uniform_int_distribution<> distrib(0, 100);
 
         // ---------------- 1. Generate base functions Fi ----------------
@@ -26,23 +26,23 @@ namespace Generator {
         funcs.dim   = dim;
         funcs.data.reserve(n * dim);
 
+        // The model assumes pairwise DISTINCT functions: with int8 coefficients
+        // the vector space is small (101^d), so duplicates must be rejected
+        // explicitly or birthday collisions appear well before n = 500 at d = 2.
+        std::set<std::vector<int8_t>> seen;
+
         // Function id = i+1 (1-based) by position in funcs.data
         for (std::size_t i = 0; i < n; ++i) {
             bool all_zero = true;
-
+            std::vector<int8_t> row(dim);
             for (std::size_t d = 0; d < dim; ++d) {
                 int val = distrib(gen);       // [0,100]
                 if (val != 0) all_zero = false;
-                funcs.data.push_back(static_cast<int8_t>(val));
+                row[d] = static_cast<int8_t>(val);
             }
-
-            // Avoid degenerate all-zero function
-            if (all_zero) {
-                // remove last dim entries and re-generate this function
-                funcs.data.resize(funcs.data.size() - dim);
-                --i;
-                continue;
-            }
+            // Reject degenerate all-zero and duplicate coefficient vectors.
+            if (all_zero || !seen.insert(row).second) { --i; continue; }
+            funcs.data.insert(funcs.data.end(), row.begin(), row.end());
         }
 
         // --------------- 2. Generate pairwise Fi = Fj ------------------
@@ -88,8 +88,8 @@ namespace Generator {
     }
 
     // New wrapper entry point
-    void run(std::size_t n_functions, std::size_t dim) {
-        generate_functions_and_pairs(n_functions, dim);
+    void run(std::size_t n_functions, std::size_t dim, unsigned seed) {
+        generate_functions_and_pairs(n_functions, dim, seed);
     }
 
 } // namespace Generator

@@ -13,16 +13,18 @@ int main(int argc, char** argv) {
     std::size_t n   = 5;  // number of functions
     std::size_t dim = 3;  // dimension
 
+    unsigned seed = 0;
     if (argc >= 3) {
         n   = static_cast<std::size_t>(std::stoul(argv[1]));
         dim = static_cast<std::size_t>(std::stoul(argv[2]));
     }
+    if (argc >= 4) seed = static_cast<unsigned>(std::stoul(argv[3]));
 
     // std::println("=== Function + Pairwise Generator Test ===");
     // std::println("Requested: {} functions in {}D", n, dim);
 
     // 1) Run the generator (creates the two .bin files)
-    Generator::run(n, dim);
+    Generator::run(n, dim, seed);
 
     // 2) Load the generated datasets back
     const std::string func_file = std::format("{}_functions_{}d.bin", n, dim);

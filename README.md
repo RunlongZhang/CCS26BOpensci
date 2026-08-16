@@ -1,156 +1,151 @@
-# Efficient Authentication Function Tree
+# AOF-tree: Authenticated Function Queries — Artifact
 
-A C++ research codebase for **function sorting** experiments (e.g., ITree / FsTree variants and Merkle-tree-based proofs). Includes dataset generators and an LP solver target backed by HiGHS Simplex.
+This artifact contains the complete implementation and experiment pipeline for
+the paper *"Authentication-Oriented Function Tree: Efficient and Verifiable
+Function Query Processing"*: the AOF-tree builder, its commitment scheme and
+signed ADS, authenticated top-k and range query processing with an independent
+client-side verifier, the verifiable-construction certificate protocol
+(generation and owner-side verification), and the Simplex-based I-tree
+baseline used for comparison.
 
-> **Build system:** CMake
-> **C++ standard:** C++26 (`CMAKE_CXX_STANDARD = 26`)
-> **Target platform:** Windows 11 x64
+Every experiment in the paper is reproducible end-to-end with two scripts:
+a ~3-minute smoke test and a full reproduction run. All datasets are
+synthetic and generated from fixed, recorded seeds.
 
----
+## Layout
 
-## Prebuilt binaries
+```
+CMakeLists.txt        build definition (no machine-specific paths)
+vcpkg.json            dependency manifest (OpenSSL, HiGHS, Eigen)
+LICENSE, .gitignore
+src/
+  AofAds.h            AOF-tree builder, commitments, signer, server, client verifier
+  AofBenchMain.cpp    construction/ADS/query benchmark driver
+  CertBenchMain.cpp   verifiable-construction certificate benchmark
+  ITreeSimplex*.{h,cpp}, SimplexSolver.h, MerkleTree.h   I-tree baseline
+  PolytopeOps.h, PolytopeStructs.h                       geometric kernel
+  FunctionPairGenerator.{h,cpp}, FunctionPairMain.cpp    seeded dataset generator
+  CompactIO.h         dataset file format
+scripts/
+  build.ps1                 configure + build (CMake + vcpkg manifest mode)
+  quick_test.ps1            ~3-minute smoke test of every program + sample figures
+  reproduce_all.ps1         full experiment grids (~2-3 h) + all paper figures
+  parse_itree.py            parses baseline logs into itree_results.csv
+  parse_cert_deviations.py  parses CertBench logs into cert_deviations.csv
+  plot_results.py           draws every result figure + summary.txt
+```
 
-If you just want to run the programs without building from source, prebuilt Windows x64 executables are available in [`prebuilt/`](prebuilt/). They ship with the runtime DLLs they need and should run on any modern Windows 11 x64 machine without further setup.
-
-
-To build the project from source instead, follow the instructions below.
-
----
+The scripts create `out/` (build output) and `figs/` (figures) plus datasets,
+logs, and CSVs inside the build directory; all of these are generated and
+git-ignored.
 
 ## Requirements
 
-- **Windows 11 x64**
-- **Visual Studio 2022 or later** with the *Desktop development with C++* workload installed (provides MSVC, the Windows SDK, Ninja, and CMake)
-- **vcpkg** for installing C++ dependencies (OpenSSL, HiGHS)
-- **Eigen** (header-only)
+- **Windows 11 x64.** (The baseline `ITreeSimplexMain.cpp` uses Windows
+  headers; all measurements in the paper were taken on Windows.)
+- **Visual Studio 2022 or later** with the *Desktop development with C++*
+  workload (provides MSVC, CMake ≥ 3.28, and Ninja).
+- **vcpkg** — any checkout; dependencies are declared in `vcpkg.json`
+  (manifest mode) and are downloaded/built automatically at configure time.
+  There are **no paths to edit** in any file.
+- **Python 3.10+** with `pandas` and `matplotlib` (`pip install pandas matplotlib`)
+  for parsing and plotting.
 
----
-
-## Setup
-
-> **Path placeholders used below:**
-> - `<project-root>` — wherever this repository lives on your machine (e.g., `C:\Code`)
-> - `<vcpkg-root>` — your vcpkg installation directory (e.g., `C:\vcpkg`)
-> - `<eigen-root>` — your local Eigen install directory
->
-> Substitute the real paths from your machine when running the commands.
-
-### 1. Install vcpkg
-
-If you don't already have vcpkg, clone and bootstrap it:
-
-```powershell
-git clone https://github.com/microsoft/vcpkg.git <vcpkg-root>
-<vcpkg-root>\bootstrap-vcpkg.bat
-<vcpkg-root>\vcpkg.exe integrate install
-```
-
-
-### 2. Install C++ dependencies
-
-From any PowerShell terminal:
-
-```powershell
-<vcpkg-root>\vcpkg.exe install openssl:x64-windows highs:x64-windows
-```
-
-
-### 3. Install Eigen (header-only)
-
-Download or clone Eigen anywhere on disk:
-
-```cmake
-include_directories("C:/path/to/your/eigen")
-```
-
----
+Reference machine for the paper's timings: Intel Core i9-14900K, 64 GB RAM.
+Absolute timings will differ on other hardware; the trends and the
+verification outcomes (acceptance, tamper rejection, certificate checks)
+are hardware-independent.
 
 ## Build
 
-### Prerequisite: Edit CMakeLists.txt Paths
-
-1. Edit line 9 to include path to eigen as shown in previous step.
-2. Edit line 16 to include path to Highs.h file
-3. Edit line 19 to include path to Highs.lib file
-
-### Option A: Visual Studio — recommended
-
-1. Launch Visual Studio.
-2. **File → Open → Folder...** and select the project root (`<project-root>`).
-3. Visual Studio detects `CMakeLists.txt` and configures automatically. The vcpkg toolchain file is picked up via `CMAKE_TOOLCHAIN_FILE`.
-4. In the configuration dropdown at the top of the IDE, select **`x64-Release`**. If it's not in the list, click **Manage Configurations...**, press **+**, and add **x64-Release**.
-5. **Build → Build All**.
-
-Executables land in `out\build\x64-Release\` alongside the runtime DLLs.
-
-### Option B: Command line
-
-Open *PowerShell*:
+From a **Developer PowerShell for VS** prompt:
 
 ```powershell
-cmake -B out/build/x64-Release -G Ninja `
-    -DCMAKE_BUILD_TYPE=Release `
-    -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake
-cmake --build out/build/x64-Release
-cmake --install out/build/x64-Release --prefix dist
+git clone https://github.com/microsoft/vcpkg
+.\vcpkg\bootstrap-vcpkg.bat            # skip both steps if you already have vcpkg
+scripts\build.ps1 -VcpkgRoot <path-to-vcpkg>
 ```
 
-## Run
+(`-VcpkgRoot` can be omitted if the `VCPKG_ROOT` environment variable is set.)
+The first configure installs OpenSSL, HiGHS, and Eigen through vcpkg, which
+can take several minutes; subsequent builds are fast.
 
-From the build output directory (or the prebuilt folder), launch any executable:
-
-YOU MUST GENERATE FUNCTIONS FIRST BEFORE TREES CAN BE BUILT
+## Quick validation (~3 minutes)
 
 ```powershell
-cd out\build\x64-Release
-.\FunctionGenerator.exe <functions: int> <dimensions: int>
-.\AOF.exe <functions: int> <dimensions: int> <ADS: 0/1>
-.\Pruned_AOF.exe <functions: int> <dimensions: int> <ADS: 0/1>
-.\Verified_AOF.exe <functions: int> <dimensions: int> <ADS: 0/1>
-.\ITreeSimplex.exe <functions: int> <dimensions: int> <ADS: 0/1>
-.\format.exe <Itree:0/1> <Pruned_AOF:0/1> <Verified_AOF:0/1> <dimensions: int> <ADS:0/1>
+scripts\quick_test.ps1
 ```
 
-Note that format.exe is meant to pool all results together, and should be used when relevant results have been generated.
+Runs the generator, `AofBench`, `CertBench`, and the `ITreeSimplex` baseline
+on small instances, then parses and plots. The two benchmarks **self-verify**
+and gate their exit codes on it: `AofBench` exits non-zero unless all 200
+authenticated queries verify and every injected tampering (dropped answer,
+flipped bucket bit, bumped rank) is rejected; `CertBench` exits non-zero
+unless every construction certificate verifies and every falsified
+certificate is caught. (Both also exit non-zero on missing input files or bad
+usage; the failing run's log in `runs\` pinpoints the cause. `ITreeSimplex`
+is a performance baseline without an exit-code gate.) The script prints
+`QUICK TEST PASSED` on success.
 
-Alternatively, the .exe in prebuilt can be run with the same parameters in /prebuilt
-
-## Graphing
-
-Graphing code is included as "graphit.py", which requires python and seaborn to work.
-
-```pip install seaborn```
-
-To run:
-
-```python graphit.py <Itree:0/1> <AOF:0/1> <Pruned_AOF:0/1> <Verified_AOF:0/1> <FuncxInters: 0/1> <y-axis: 0/1/2/3> <dimensions: int>```
-
-FuncxInters 0: x-axis represented as n
-            1: x-axis represented as n(n-1)/2
-
-y-axis 0: construction time
-       1: index storage without ADS
-       2: ADS storage without index
-       3: total storage
-
-Note that graphit.py needs to be in the same directory as other executables.
-
-If you are using the prebuilt executables, simply move graphit.py to /prebuilt
-
-## Example Sequence
+## Full reproduction (~2–3 hours)
 
 ```powershell
-cd out\build\x64-Release
-.\FunctionGenerator.exe 100 2
-.\FunctionGenerator.exe 20 2
-.\Verified_AOF.exe 100 2 0
-.\Verified_AOF.exe 20 2 0
-.\Pruned_AOF.exe 100 2 0
-.\Pruned_AOF.exe 20 2 0
-.\AOF.exe 100 2 0
-.\AOF.exe 20 2 0
-.\format.exe 1 0 1 2 0
-python graphit.py 0 1 1 1 0 3 2
+scripts\reproduce_all.ps1
 ```
 
-The above sequence: generates 2 data sets at 2 dimensions, constructs all proposed structures, formats the data into one file, and plots the formatted data for total storage
+Runs the paper's full grids:
+
+| Experiment | Grid | Paper section |
+|---|---|---|
+| `AofBench` (construction, ADS, storage, top-k/range queries, VO sizes, client verification) | d=2: n=10..500; d=3: n=10..250; d=4: n=10..60 | §5.3, §5.4 |
+| `CertBench` (certificate generation, owner verification, sparsity, deviation detection) | d=2: n=10..250; d=3: n=10..100; d=4: n=10..30 | §5.5 |
+| `ITreeSimplex` baseline (construction time, feasibility-check time, storage) | the scales the baseline reaches: d=2: n≤50; d=3: n≤25; d=4: n≤16 | §5.4 |
+
+and then produces every result figure in `figs/`:
+
+| Files | Content |
+|---|---|
+| `q_vo_{2,3,4}.png`, `q_latency_{2,3,4}.png` | VO sizes; server latency and client verification time |
+| `c_construct_{2,3,4}.png`, `c_storage_{2,3,4}.png` | construction time vs. the baseline; storage decomposition vs. the baseline |
+| `v_time_{2,3,4}.png`, `v_size_{2,3,4}.png` | verifiable construction: generation/verification time; certificate volume |
+| `summary.txt` | every raw measurement row, for cross-checking numbers quoted in the paper |
+
+Raw measurements land in the build directory: `aof_bench_results.csv` and
+`cert_bench_results.csv` (headerless; column names are listed at the top of
+`scripts/plot_results.py`), `itree_results.csv` and `cert_deviations.csv`
+(with header rows). `cert_deviations.csv` reports, per configuration, the
+constructor deviations detected by the certificate replay and their rate
+among all certified events — the quantity discussed in the paper's
+verifiable-construction section.
+
+## Determinism and numerical notes
+
+- Dataset seeds are fixed by the scripts (`1000 + 10n + d` per configuration);
+  the generator rejects duplicate functions so the paper's pairwise-distinct
+  assumption holds. Query workloads use 200 queries with seed 42.
+- Exact results vary with hardware and OS scheduling only in *timings*; VO
+  sizes, tree shapes, certificate counts, and all verification outcomes are
+  deterministic given the seeds.
+- Geometric predicates are evaluated in floating point. All certificate data
+  is rational, so a production owner can verify certificates in exact
+  arithmetic; this implementation's owner check uses a scale-aware tolerance
+  as a stand-in. The certificate protocol's *detection* behavior on
+  floating-point deviations of the constructor is itself an experiment
+  reported in the paper (§5.5) and is reproduced by `CertBench`.
+- Windows PowerShell 5.1 writes UTF-16 log files via `*>` redirection, while
+  PowerShell 7 writes UTF-8; the parsing scripts detect the encoding by BOM,
+  so both parse correctly.
+
+## Program reference
+
+```
+FunctionGenerator.exe <n> <d> [seed]        # writes <n>_functions_<d>d.bin + <n>_pairwise_<d>d.bin
+                                            # seed omitted or 0 = nondeterministic;
+                                            # the scripts always pass 1000 + 10n + d
+AofBench.exe          <n> <d> [queries=200] [seed=42]
+CertBench.exe         <n> <d>
+ITreeSimplex.exe      <n> <d> <ads: 0/1>    # the paper's baseline runs use ads=1
+```
+
+All programs read datasets from and write results to the current working
+directory (the scripts run them from the build directory).

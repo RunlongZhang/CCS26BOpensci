@@ -1,4 +1,3 @@
-#pragma once
 #define NOMINMAX
 #include <windows.h>
 #include <print>
@@ -21,10 +20,8 @@ int main(int argc, char* argv[]) {
 
     auto ensure_logs_dir = []() -> fs::path {
         fs::path logs_dir = "logs";
-        fs::path res_dir = "results";
         if (!fs::exists(logs_dir)) {
             fs::create_directory(logs_dir);
-            fs::create_directory(res_dir);
         }
         return logs_dir;
     };
@@ -39,8 +36,8 @@ int main(int argc, char* argv[]) {
     int ads = std::stoi(argv[3]);
     std::string filename = std::format("{}_pairwise_{}d.bin", n_planes, dim);
 
-    // NEW: log file result_{dim}
-    fs::path log_dir = ensure_logs_dir();
+    // Result log; the directory may not exist on a fresh checkout.
+    fs::create_directories("results");
     std::string log_filename = std::format("results/itree_result_{}_{}_{}", n_planes, dim, ads);
     std::ofstream log(log_filename, std::ios::trunc);
     if (!log) {
@@ -80,6 +77,7 @@ int main(int argc, char* argv[]) {
 
         const int bar_width = 50;
 
+        fs::path log_dir = ensure_logs_dir();
         const std::string base = std::format("ITreeSimplexPerf_FC_{}_{}", dim, n_planes);
         fs::path txt_path = log_dir / (base + ".txt");
 

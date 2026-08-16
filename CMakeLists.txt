@@ -1,76 +1,80 @@
 cmake_minimum_required(VERSION 3.28)
-project(aoftree)
+project(aof_tree_artifact LANGUAGES CXX)
 
-# --- Global Settings ---
-set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 1. FIND EIGEN
-# This tells the compiler where to look for <Eigen/Dense>
-include_directories("path/to/eigen")
+# All dependencies resolve through standard find_package calls.  When this
+# project is configured with the vcpkg toolchain file, the vcpkg.json manifest
+# in this directory makes vcpkg download and build OpenSSL, HiGHS, and Eigen
+# automatically at configure time -- there are no paths to edit in this file.
 
-#Library for hashing
 find_package(OpenSSL REQUIRED)
 
-# 1. Find HiGHS
-find_path(HIGHS_INCLUDE_DIR Highs.h
-        PATHS highs/head/loc
-)
-find_library(HIGHS_LIBRARY highs
-        PATHS highs/library/loc
-)
-
-if (NOT HIGHS_INCLUDE_DIR OR NOT HIGHS_LIBRARY)
-    message(WARNING "HiGHS not found! Targets 'lp_solver' and 'highs_test' will not be built.")
-else()
-    # --- Target 1: The Main LP Solver Application ---
-    add_executable(ITreeSimplex
-            ItreeSimplexMain.cpp
-            # Helper headers (LPSolver.h, LPTree.h, etc are included implicitly)
-            CompactIO.h
-    )
-    target_include_directories(ITreeSimplex PRIVATE ${HIGHS_INCLUDE_DIR})
-    target_link_libraries(ITreeSimplex PRIVATE ${HIGHS_LIBRARY})
-    target_link_libraries(ITreeSimplex PRIVATE OpenSSL::SSL OpenSSL::Crypto)
-
+find_package(Eigen3 CONFIG QUIET)
+if(NOT TARGET Eigen3::Eigen)
+    # Fallback for a plain Eigen checkout without vcpkg:
+    #   cmake ... -DEIGEN_INCLUDE_DIR=<path to an Eigen source checkout>
+    if(NOT DEFINED EIGEN_INCLUDE_DIR)
+        message(FATAL_ERROR
+            "Eigen not found. Configure with the vcpkg toolchain (recommended) "
+            "or pass -DEIGEN_INCLUDE_DIR=<path to an Eigen checkout>.")
+    endif()
+    add_library(Eigen3::Eigen INTERFACE IMPORTED)
+    set_target_properties(Eigen3::Eigen PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${EIGEN_INCLUDE_DIR}")
 endif()
 
-# --- Target 1: Test data generator for FS-tree ---
+find_package(highs CONFIG QUIET)
+if(TARGET highs::highs)
+    set(HIGHS_TARGET highs::highs)
+else()
+    # Fallback: locate a HiGHS install discoverable via CMAKE_PREFIX_PATH.
+    find_path(HIGHS_INCLUDE_DIR Highs.h PATH_SUFFIXES highs)
+    find_library(HIGHS_LIBRARY highs)
+    if(NOT HIGHS_INCLUDE_DIR OR NOT HIGHS_LIBRARY)
+        message(FATAL_ERROR
+            "HiGHS not found. Configure with the vcpkg toolchain (recommended) "
+            "or make a HiGHS install discoverable via CMAKE_PREFIX_PATH.")
+    endif()
+    add_library(highs_imported INTERFACE IMPORTED)
+    set_target_properties(highs_imported PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${HIGHS_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "${HIGHS_LIBRARY}")
+    set(HIGHS_TARGET highs_imported)
+endif()
+
+# The sources include <Highs.h> directly; some HiGHS installs export only the
+# parent include directory, so add the highs/ subdirectory when it exists.
+if(TARGET highs::highs)
+    get_target_property(_highs_incs highs::highs INTERFACE_INCLUDE_DIRECTORIES)
+    if(_highs_incs)
+        foreach(_inc IN LISTS _highs_incs)
+            if(EXISTS "${_inc}/highs/Highs.h")
+                target_include_directories(highs::highs INTERFACE "${_inc}/highs")
+            endif()
+        endforeach()
+    endif()
+endif()
+
+# --- Dataset generator (seeded, duplicate-free) ---
 add_executable(FunctionGenerator
-        FunctionPairMain.cpp
-        FunctionPairGenerator.h
-        FunctionPairGenerator.cpp
- )
+    src/FunctionPairMain.cpp
+    src/FunctionPairGenerator.cpp)
 
- # --- Target M1: Merkle FsTree ---
- add_executable(Pruned_AOF
-        MFsTree.cpp
-        PolytopeStructs.h
-        PolytopeOps.h
-        MFsTree.h
-        CompactIO.h
- )
- target_link_libraries(Pruned_AOF PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+# --- AOF-tree construction / ADS / authenticated-query benchmark ---
+add_executable(AofBench
+    src/AofBenchMain.cpp
+    src/FunctionPairGenerator.cpp)
+target_link_libraries(AofBench PRIVATE OpenSSL::Crypto Eigen3::Eigen)
 
- # --- Target M2: Merkle FsTree Full---
- add_executable(AOF
-        MFsTreeFull.cpp
-        PolytopeStructs.h
-        PolytopeOps.h
-        MFsTreeFull.h
-        CompactIO.h
- )
- target_link_libraries(AOF PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+# --- Verifiable-construction certificate benchmark (needs HiGHS) ---
+add_executable(CertBench
+    src/CertBenchMain.cpp
+    src/FunctionPairGenerator.cpp)
+target_link_libraries(CertBench PRIVATE OpenSSL::Crypto Eigen3::Eigen ${HIGHS_TARGET})
 
- add_executable(format 
-        Format.cpp 
- )
-
- # --- Target M3: Verifiable Merkle FsTree---
- add_executable(Verified_AOF
-        VMFsTree.cpp
-        PolytopeStructs.h
-        PolytopeOps.h
-        VMFsTree.h
-        CompactIO.h
- )
- target_link_libraries(Verified_AOF PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+# --- I-tree (Simplex) baseline (needs HiGHS; Windows-only sources) ---
+add_executable(ITreeSimplex
+    src/ITreeSimplexMain.cpp)
+target_link_libraries(ITreeSimplex PRIVATE OpenSSL::Crypto Eigen3::Eigen ${HIGHS_TARGET})

@@ -36,9 +36,9 @@ def style(ax, xlabel, ylabel, logy=False):
     if logy: ax.set_yscale("log")
     ax.legend(fontsize=9)
 
-def save(fig, figs, name):
+def save(fig, figs, name, dpi=160):
     fig.tight_layout()
-    fig.savefig(figs / name, dpi=160)
+    fig.savefig(figs / name, dpi=dpi)
     plt.close(fig)
     print("wrote", name)
 
@@ -107,6 +107,71 @@ def main(build, figs):
             ax.plot(C.n, (C.n_part + C.n_nonpart), "s--", label="Certificate count")
             style(ax, "n", "KiB / count", logy=True)
             save(fig, figs, f"v_size_{d}.png")
+
+    # --- Combined cross-dimension panels (the paper's body figures) ---
+    # Grayscale-safe encoding: dimension d -> marker shape (o/s/^), series
+    # type -> line style (solid/dashed); color redundantly encodes d.
+    colors = {2: "C0", 3: "C1", 4: "C2"}
+    marks = {2: "o", 3: "s", 4: "^"}
+    dims = sorted(aof["d"].unique())
+
+    # VO sizes: top-k solid / range dashed.
+    fig, ax = plt.subplots(figsize=(4.6, 2.6))
+    for d in dims:
+        A = aof[aof.d == d]
+        ax.plot(A.n, A.topk_vo_b / 1024, marks[d] + "-", color=colors[d],
+                ms=3.5, label=f"top-$k$, $d={d}$")
+        ax.plot(A.n, A.range_vo_b / 1024, marks[d] + "--", color=colors[d],
+                ms=3.5, mfc="none", label=f"range, $d={d}$")
+    ax.set_xscale("log")
+    ax.set_xlabel("n"); ax.set_ylabel("VO size (KiB)")
+    ax.grid(True, alpha=0.3); ax.legend(fontsize=8, ncol=2)
+    save(fig, figs, "q_vo_all.png", dpi=220)
+
+    # Client verification time in microseconds.
+    fig, ax = plt.subplots(figsize=(4.6, 2.6))
+    for d in dims:
+        A = aof[aof.d == d]
+        ax.plot(A.n, A.topk_verify_ms * 1000, marks[d] + "-", color=colors[d],
+                ms=3.5, label=f"top-$k$, $d={d}$")
+        ax.plot(A.n, A.range_verify_ms * 1000, marks[d] + "--", color=colors[d],
+                ms=3.5, mfc="none", label=f"range, $d={d}$")
+    ax.set_xscale("log")
+    ax.set_xlabel("n"); ax.set_ylabel(r"client verify ($\mu$s)")
+    ax.grid(True, alpha=0.3); ax.legend(fontsize=8, ncol=2)
+    save(fig, figs, "q_verify_all.png", dpi=220)
+
+    # Construction time: AOF solid vs I-tree baseline dashed, log-log.
+    fig, ax = plt.subplots(figsize=(4.6, 2.6))
+    for d in dims:
+        A = aof[aof.d == d]
+        ax.plot(A.n, A.construct_s, marks[d] + "-", color=colors[d], ms=3.5,
+                label=f"AOF-tree, $d={d}$")
+    for d in dims:
+        I = itree[itree.d == d] if len(itree) else itree
+        if len(I):
+            ax.plot(I.n, I.plot_time, marks[d] + "--", color=colors[d],
+                    ms=3.5, mfc="none", label=f"I-tree, $d={d}$")
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("n"); ax.set_ylabel("construction (s)")
+    ax.grid(True, alpha=0.3); ax.legend(fontsize=8, ncol=2)
+    save(fig, figs, "c_construct_all.png", dpi=220)
+
+    # Total storage: AOF (ADS + pruned index) solid vs I-tree dashed, log-log.
+    fig, ax = plt.subplots(figsize=(4.6, 2.6))
+    for d in dims:
+        A = aof[aof.d == d]
+        ax.plot(A.n, (A.ads_bytes + A.idx_pruned) / 1024, marks[d] + "-",
+                color=colors[d], ms=3.5, label=f"AOF-tree, $d={d}$")
+    for d in dims:
+        I = itree[itree.d == d] if len(itree) else itree
+        if len(I):
+            ax.plot(I.n, I.storage_b / 1024, marks[d] + "--", color=colors[d],
+                    ms=3.5, mfc="none", label=f"I-tree, $d={d}$")
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("n"); ax.set_ylabel("total storage (KiB)")
+    ax.grid(True, alpha=0.3); ax.legend(fontsize=8, ncol=2)
+    save(fig, figs, "c_storage_all.png", dpi=220)
 
     # Summary table for the paper text.
     with open(figs / "summary.txt", "w") as f:
